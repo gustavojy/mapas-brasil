@@ -1,0 +1,1765 @@
+---
+title: "Mapas do Brasil em R"
+subtitle: "Integrando os pacotes geobr e tidyverse"
+author: "Gustavo Jun Yakushiji"
+date: last-modified
+date-format: "DD-MM-YYYY"
+lang: pt-BR
+theme: cosmo
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    embed-resources: true
+    smooth-scroll: true
+    code-link: true
+    number-sections: true
+    anchor-sections: true
+    page-layout: full
+---
+
+```{r}
+#| include: false
+
+options(scipen = 999)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  comment = "#>",
+  collapse = TRUE,
+  error = TRUE,
+  results = "markup",
+  fig.align = "center",
+  message = FALSE,
+  cache = TRUE
+)
+
+# Pacotes
+library(geobr)
+library(tidyverse)
+library(gghighlight)
+library(patchwork)
+library(kableExtra)
+```
+
+# Introdução {.unnumbered}
+
+Neste material, apresentaremos uma das diversas possibilidade de utilização de mapas no R. Existe uma grande variedade de pacotes desenvolvidos pela comunidade do R que tratam sobre o assunto. No caso da confecção de mapas do Brasil, utilizaremos o pacote `geobr`.
+
+O pacote `geobr` foi desenvolvido por membros da equipe do [Instituto de Pesquisa Econômica Aplicada (IPEA)](https://github.com/ipeaGIT/geobr). Nele, encontramos uma ampla gama de dados geoespaciais oficiais do Brasil, disponíveis em várias escalas geográficas e por vários anos, com atributos, projeção e topologia harmonizados.
+
+Além do `geobr`, utilizaremos funções dos pacotes presentes no `tidyverse` para a manipulação e visualização de dados. Caso queira saber mais sobre as funcionalidades do `tidyverse`, confira o seguinte material: <https://github.com/gustavojy/icdr>.
+
+A instalação dos pacotes `geobr` e `tidyverse` pode ser realizada diretamente via CRAN.
+
+```{r}
+#| eval: false
+
+install.packages("geobr")
+install.packages("tidyverse")
+```
+
+```{r}
+#| eval: false
+
+library(geobr)
+library(tidyverse)
+```
+
+::: callout-note
+Este material foi desenvolvido a partir da versão 1.8.2 do pacote `geobr`, que pode passar por melhorias e incrementos ao longo do tempo.
+:::
+
+# Funções do geobr
+
+O pacote `geobr` oferece uma grande variedade de conjuntos de dados geoespaciais abrangendo diversos temas de mapas do Brasil. Para verificar todas as funcionalidades disponíveis, utilizamos a função `list_geobr()`.
+
+```{r}
+#| eval: false
+
+list_geobr() |> View()
+```
+
+```{r}
+#| echo: false
+
+kbl(
+  tibble(list_geobr()),
+  table.attr = "style = \"color: black;\"", position = "c"
+) |> 
+  kable_styling(font_size = 10, position = "c", full_width = FALSE)
+```
+
+A `list_geobr()` nos retorna um *data frame* com todos os dados disponíveis no pacote. Com a função, podemos verificar as seguintes variáveis:
+
+- `function`: o nome das funções que contêm os conjuntos de dados;
+
+- `geography`: a abrangência geográfica dos dados;
+
+- `years`: os anos disponíveis;
+
+- `source`: a fonte dos dados.
+
+A seguir, veremos como utilizar cada uma dessas funções.
+
+# Mapa do país
+
+Para acessar o mapa do Brasil, utilizamos a função `read_country()`.
+
+```{r}
+#| results: hide
+
+brasil <- read_country()
+```
+
+```{r}
+class(brasil)
+```
+
+Com a função `class()`, verificamos que a `read_country()` é um *data frame* do tipo `"sf"` (sigla para *simple features*). De maneira geral, os objetos do tipo *sf* contém informações geoespaciais que são utilizadas para a confecção dos mapas no R[^1].
+
+[^1]: Para saber mais sobre as *simple features (sf)*, confira o seguinte texto: <https://r-spatial.github.io/sf/articles/sf1.html>.
+
+Para visualizarmos o mapa, utilizamos as ferramentas do pacote `ggplot2` (um dos diversos membros do `tidyverse`) para traduzir as informações geoespaciais do `geobr` em mapas.
+
+```{r}
+ggplot(brasil) +
+  geom_sf()
+```
+
+Com a função `ggplot()`, utilizamos a geometria `geom_sf()`, que converte os dados do tipo *sf* em mapa.
+
+A mesma lógica que utilizamos para confeccionar gráficos no `ggplot2` é aplicável aos mapas. A seguir, demonstraremos um exemplo básico de personalização do mapa anterior.
+
+```{r}
+ggplot(brasil) +
+  geom_sf(fill = "#2D3E50", color = "#FEBF57") +
+  theme_bw() +
+  labs(
+    title = "Mapa do Brasil",
+    subtitle = "com os pacotes geobr e tidyverse",
+    x = "Longitude",
+    y = "Latitude"
+  )
+```
+
+Cada mapa do `geobr` utiliza uma escala e um sistema geodésico de referência específicos. Para conferi-los, acesse a documentação das respectivas funções. Como exemplo, podemos acessar a documentação da função `read_country()` da seguinte maneira.
+
+```{r}
+#| eval: false
+
+?read_country
+```
+
+Neste caso, o mapa gerado pela função está na escala 1:250.000 e utiliza o SIRGAS2000 e o CRS(4674) como sistemas geodésicos de referência.
+
+# Estados {#sec-estados}
+
+Para representarmos o mapa do Brasil dividido por estados, utilizamos a função `read_state()`. Dentro da função, podemos utilizar alguns argumentos adicionais.
+
+```{r}
+read_state(
+  code_state = "all", year = 2020, 
+  simplified = FALSE, showProgress = FALSE
+) |> 
+  ggplot() + 
+  geom_sf() +
+  theme_bw()
+```
+
+O argumento `code_state =` é utilizado para especificar qual(is) estados serão utilizados para compor o mapa. Se `code_state = "all"`, todos os estados são utilizados. Na @sec-select-estados, demonstraremos como trabalhar com os estados de maneira individualizada.
+
+O `year =` permite selecionar um ano em específico do conjunto de dados. Caso o argumento não seja declarado, por padrão, será adotado o ano de 2010. Como ilustração, podemos comparar o mapa dos estados do Brasil nos anos de 1872 e 2020.
+
+```{r}
+#| layout-ncol: 2
+
+# Mapa à esquerda
+read_state(
+  code_state = "all", year = 1872, 
+  simplified = FALSE, showProgress = FALSE
+) |> 
+  ggplot() + 
+  geom_sf(fill = "lightgray") +
+  theme_bw() +
+  labs(title = "1872")
+
+# Mapa à direita
+read_state(
+  code_state = "all", year = 2020, 
+  simplified = FALSE, showProgress = FALSE
+) |> 
+  ggplot() + 
+  geom_sf(fill = "lightgray") +
+  theme_bw() +
+  labs(title = "2020")
+```
+
+Já o argumento `simplified = ` trata da resolução do mapa. Caso `simplified = TRUE`, as bordas do mapa são traçadas de maneira aproximada. Por outro lado, caso `simplified = FALSE`, as bordas são traçadas de modo detalhado. Por padrão, caso o argumento não for especificado, adota-se `simplified = TRUE`.
+
+Por fim, o argumento `showProgress =` aceita valores lógicos para mostrar (`TRUE`) ou não (`FALSE`) a barra de progresso da importação dos dados.
+
+## Selecionar estados {#sec-select-estados}
+
+Para selecionar um estado em específico, podemos utilizar a abreviação do nome do estado (`abbrev_state`) ou um código de dois dígitos (`code_state`). Tanto as abreviações, como os códigos podem ser consultados no *data frame* da função `read_state()`.
+
+```{r}
+#| eval: false
+
+read_state(code_state = "all") |> View()
+```
+
+```{r}
+#| echo: false
+
+kbl(
+  tibble(read_state(showProgress = FALSE)),
+  table.attr = "style = \"color: black;\"", position = "c"
+)|>
+  kable_styling(font_size = 13, position = "c", full_width = FALSE)
+```
+
+Como exemplo, selecionaremos o estado de São Paulo a partir de sua nomenclatura abreviada e pelo seu código de identificação.
+
+```{r}
+#| layout-ncol: 2
+
+# Mapa à esquerda
+read_state(code_state = "SP", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+
+# Mapa à direita
+read_state(code_state = 35, year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Também podemos formar um mapa com mais de um estado. Para isso, utilizamos a função `dplyr::filter()`. O exemplo a seguir representa a região do MATOPIBA, composta pelos estados do Maranhão, Tocantins, Piauí e Bahia.
+
+```{r}
+read_state(code_state = "all", year = 2020, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state %in% c("MA", "TO", "PI", "BA")) |> 
+  ggplot() +
+  geom_sf(aes(fill = name_state)) +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_classic() +
+  labs(fill = "MATOPIBA")
+```
+
+## Adicionar legendas {#sec-legendas}
+
+Para adicionar legendas nos mapas, utilizamos a função `geom_sf_text()` junto à `ggplot()`. A seguir, adicionaremos as abreviações dos nomes dos estados como legenda no mapa do Brasil.
+
+```{r}
+read_state(code_state = "all", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  geom_sf_text(aes(label = abbrev_state), size = 1.8) +
+  theme_bw()
+```
+
+Dentro da função `geom_sf_text()` declaramos o argumento `label =` dentro da `aes()`, indicando que, para compor a legenda, serão consideradas as abreviações dos nomes dos estados (`abbrev_state`).
+
+## Estado de um CEP
+
+A função `cep_to_state()` nos retorna o estado correspondente a um CEP (Código de Endereçamento Postal). Apresenta o argumento `cep =` que recebe um valor de 8 dígitos, podendo ser redigido no formato "xxxxx-xxx" ou em números corridos.
+
+```{r}
+cep_to_state(cep = "13416-020")
+
+cep_to_state(cep = "13416020")
+```
+
+# Regiões geográficas
+
+De maneira semelhante aos estados, podemos dividir o mapa do Brasil em regiões geográficas. Para isso, utilizamos a função `read_region()`.
+
+```{r}
+read_region(year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf(aes(fill = name_region)) +
+  scale_fill_brewer(palette = "Paired") +
+  theme_classic() +
+  labs(fill = "Região")
+```
+
+## Selecionar regiões
+
+Para selecionar uma região específica, utilizamos, novamente, a função `dplyr::filter()`. No exemplo a seguir, filtraremos a região Nordeste.
+
+```{r}
+read_region(year = 2020, showProgress = FALSE) |> 
+  dplyr::filter(name_region == "Nordeste") |> 
+  ggplot() +
+  geom_sf() +
+  theme_classic()
+```
+
+## Regiões com os estados
+
+Para gerarmos o mapa de uma região geográfica delimitada pelos estados, devemos filtrar as respectivas observações da região. Como exemplo, filtraremos as observações dos estados da região Nordeste, presentes na variável `name_region` da função `read_state()`.
+
+```{r}
+nordeste <- read_state(code_state = "all", year = 2020, showProgress = FALSE) |> 
+  dplyr::filter(name_region == "Nordeste")
+```
+
+```{r}
+#| eval: false
+
+View(nordeste)
+```
+
+```{r}
+#| echo: false
+
+kbl(
+  tibble(nordeste),
+  table.attr = "style = \"color: black;\"", position = "c"
+)|>
+  kable_styling(font_size = 13, position = "c", full_width = FALSE)
+```
+
+```{r}
+ggplot(nordeste) +
+  geom_sf(aes(fill = name_state)) +
+  scale_fill_brewer(palette = "Paired") +
+  theme_classic() +
+  labs(fill = "Estados Nordestinos")
+```
+
+# Mesorregiões e Microrregiões
+
+Para representarmos as mesorregiões e as microrregiões do Brasil, utilizamos as funções `read_meso_region()` e `read_micro_region()`, respectivamente. A lógica dessas funções é a mesma das anteriores, apenas alterando o argumento `code_state =` para `code_meso =` e `code_micro =`.
+
+## Mesorregiões
+
+```{r}
+read_meso_region(code_meso = "all", year = 2020, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+### Selecionar Mesorregiões
+
+Para selecionar uma mesorregião, colocamos a abreviação do nome do estado ou seu código de identificação no argumento `code_meso =`. Como exemplo, selecionaremos as mesorregiões do estado de Minas Gerais.
+
+```{r}
+read_meso_region(code_meso = "MG", year = 2020, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Para selecionar mais de uma mesorregião, utilizamos o `dplyr::filter()` para filtrar as mesorregiões dos estados. A seguir, filtramos as dos estados do Rio de Janeiro e Espírito Santo.
+
+```{r}
+read_meso_region(code_meso = "all", year = 2020, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state %in% c("RJ", "ES")) |> 
+  ggplot() +
+  geom_sf(aes(fill = abbrev_state)) +
+  theme_bw() +
+  labs(fill = "Estados")
+```
+
+Para selecionar uma mesorregião específica de um estado, devemos colocar o seu código de identificação no argumento `code_meso =`. Lembrando que todos os códigos de identificação podem ser conferidos no *data frame* da respectiva função.
+
+```{r}
+read_meso_region(code_meso = 3515, year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+No exemplo anterior, selecionamos a mesorregião metropolitana de São Paulo
+
+### Regiões geográficas intermediárias
+
+As regiões geográficas intermediárias são parte de uma nova divisão geográfica criada pelo IBGE em 2017, sendo concebidas para substituir as mesorregiões. Utilizamos a função `read_intermediate_region()` para representá-las.
+
+```{r}
+read_intermediate_region(code_intermediate = "all", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+## Microrregiões
+
+```{r}
+read_micro_region(code_micro = "all", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+### Selecionar Microrregiões
+
+No exemplo a seguir, selecionaremos as microrregiões do estado do Rio Grande do Sul.
+
+```{r}
+read_micro_region(code_micro = "RS", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Também, selecionaremos as microrregiões dos estados de Santa Catarina e do Paraná.
+
+```{r}
+read_micro_region(code_micro = "all", year = 2020, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state %in% c("SC", "PR")) |> 
+  ggplot() +
+  geom_sf(aes(fill = abbrev_state)) +
+  theme_bw() +
+  labs(fill = "Estados")
+```
+
+Com o código `42002`, selecionamos uma única microrregião, respectiva à microrregião de Chapecó, no estado de Santa Catarina.
+
+```{r}
+read_micro_region(code_micro = 42002, year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+### Regiões geográficas imediatas
+
+Assim como as regiões geográficas intermediárias, as regiões geográficas imediatas são parte de uma nova divisão geográfica criada pelo IBGE em 2017, substitutas das microrregiões. Utilizamos a função `read_immediate_region()` para ilustrá-las.
+
+```{r}
+read_immediate_region(code_immediate = "all", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+# Municípios
+
+Para representarmos os municípios do Brasil, utilizamos a função `read_municipality()`.
+
+```{r}
+read_municipality(code_muni = "all", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+## Procurar municípios
+
+A função `lookup_muni()` nos auxilia a encontrar informações referentes a códigos, nomenclaturas e classificações de municípios. Para isso, indicamos o nome de um município no argumento `name_muni =` para buscar suas informações.
+
+```{r}
+#| eval: false
+
+lookup_muni(name_muni = "Piracicaba") |> View()
+```
+
+```{r}
+#| echo: false
+
+kbl(
+  lookup_muni(name_muni = "Piracicaba") |> tibble(),
+  table.attr = "style = \"color: black;\"", position = "c"
+)|>
+  kable_styling(font_size = 13, position = "c", full_width = F)
+```
+
+No exemplo acima, verificamos que o código `3538709` é respectivo ao município de Piracicaba/SP.
+
+## Selecionar Municípios
+
+No argumento `code_muni =`, informamos a abreviatura do nome de um estado para selecionar todos os seus municípios.
+
+```{r}
+read_municipality(code_muni = "SP", year = 2020, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Caso queira acessar um município em específico, colocamos seu código de identificação no argumento `code_muni =`.
+
+```{r}
+lookup_muni(name_muni = "Piracicaba") |> dplyr::glimpse()
+```
+
+```{r}
+read_municipality(code_muni = 3538709, year = 2020, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Para selecionar mais de um município, utilizamos a `dplyr::filter()`.
+
+```{r}
+read_municipality(year = 2020, showProgress = FALSE) |>
+  dplyr::filter(name_muni %in% c("Piracicaba", "Limeira", "Rio Das Pedras", "Iracemápolis")) |> 
+  ggplot() +
+  geom_sf() +
+  geom_sf_label(aes(label = name_muni)) +
+  theme_bw()
+```
+
+## Mapa do Brasil com as capitais
+
+Podemos representar as capitais de cada estado no mapa do país. Para tanto, utilizamos as informações referentes aos municípios para construir o mapa.
+
+Primeiramente, salvaremos em objetos as informações dos estados e dos municípios, contidos nas funções `read_state()` e `read_municipality()`, respectivamente.
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+municipios <- read_municipality(code_muni = "all", year = 2019, showProgress = FALSE)
+```
+
+Em seguida, criaremos um *data frame* denominado `cap`, contendo as capitais de cada estado, para, posteriormente, selecionar apenas os municípios respectivos às capitais.
+
+```{r}
+caps <- data.frame(
+  name_state = c(
+    "Acre", "Alagoas", "Amapá", "Amazônas", "Bahia", "Ceará",
+    "Espírito Santo", "Goiás", "Maranhão", "Mato Grosso", "Mato Grosso do Sul",
+    "Minas Gerais", "Pará", "Paraíba", "Paraná", "Pernambuco", "Piauí", 
+    "Rio de Janeiro", "Rio Grande do Norte", "Rio Grande do Sul", "Rondônia",
+    "Roraima", "Santa Catarina", "São Paulo", "Sergipe", "Tocantins", "Distrito Federal"
+  ),
+  name_muni = c(
+    "Rio Branco", "Maceió", "Macapá", "Manaus", "Salvador", "Fortaleza",
+    "Vitória", "Goiânia", "São Luís", "Cuiabá", "Campo Grande",
+    "Belo Horizonte", "Belém", "João Pessoa", "Curitiba", "Recife", "Teresina",
+    "Rio De Janeiro", "Natal", "Porto Alegre", "Porto Velho", "Boa Vista",
+    "Florianópolis", "São Paulo", "Aracaju", "Palmas", "Brasília"
+  )
+)
+
+caps
+```
+
+Para isso, utilizamos a função `dplyr::inner_join()` que seleciona apenas as capitais presentes no banco de dados do objeto `municipios`, baseado na correspondência com o *data frame* `caps`.
+
+```{r}
+capitais <- dplyr::inner_join(municipios, caps)
+```
+
+```{r}
+#| eval: false
+
+View(capitais)
+```
+
+```{r}
+#| echo: false
+
+kbl(
+  tibble(capitais),
+  table.attr = "style = \"color: black;\"", position = "c"
+)|>
+  kable_styling(font_size = 13, position = "c", full_width = F)
+```
+
+Para construir o mapa, utilizaremos duas geometrias `geom_sf()`. A primeira é relativa ao mapa dos estados do Brasil. Já a segunda, às capitais dos estados. Portanto, para unir dois mapas distintos, devemos utilizar mais de uma `geom_sf()`, cada qual correspondente ao respectivo conjunto de dados.
+
+```{r}
+ggplot() +
+  geom_sf(data = estados) +
+  geom_sf(data = capitais, fill = "red") +
+  theme_bw()
+```
+
+Contudo, perceba que as capitais foram representadas a partir dos polígonos que delimitam suas áreas. Para representá-las mais adequadamente, podemos criar apenas pontos no mapa que indiquem suas localizações.
+
+```{r}
+ggplot() +
+  geom_sf(data = estados) +
+  geom_point(
+    data = capitais, aes(geometry = geom), 
+    stat = "sf_coordinates", color = "red"
+  ) +
+  theme_bw()
+```
+
+Para isso, na geometria referente às capitais, substituimos a `geom_sf()` por `geom_point()`, declarando os argumentos `stat = "sf_coordinates"` e `geometry = geom` dentro do `aes()`, ambos para indicar que os dados considerados estão no formato `sf` e que desejamos representá-los por pontos no mapa.
+
+Para inserir legendas com o nome das capitais e as abreviações dos nomes dos estados, utilizamos a função `geom_sf_text()`, como demonstrado na @sec-legendas.
+
+```{r}
+ggplot() +
+  geom_sf(data = estados) +
+  geom_point(
+    data = capitais, aes(geometry = geom), 
+    stat = "sf_coordinates", color = "red"
+  ) +
+  geom_sf_text(data = estados, aes(label = abbrev_state), size = 2) +
+  geom_sf_text(
+    data = capitais, aes(label = name_muni), 
+    size = 2, nudge_y = 0.7, nudge_x = 1
+  ) +
+  theme_bw()
+```
+
+Perceba que foram utilizadas duas `geom_sf_text()`, uma respectiva às abreviações dos estados e outra, ao nome das capitais. Os argumentos `nudge_y =` e `nudge_x =` servem para reordenar o posicionamento das legendas no mapa, cada qual referente ao eixo vertical e horizontal, respectivamente.
+
+## Sedes municipais
+
+A função `read_municipal_seat()` nos retorna as prefeituras das cidades entre os anos de 1872 e 2010. Por definição, a prefeitura é uma sede municipal do poder executivo municipal.
+
+```{r}
+read_municipal_seat(year = 2010, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+No exemplo seguinte, selecionaremos as prefeituras do estado de São Paulo.
+
+```{r}
+read_municipal_seat(year = 2010, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state == "SP") |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Perceba que essa função nos retorna pontos no mapa, diferentemente dos exemplos anteriores que nos retornavam polígonos. Essa diferença pode ser percebida a partir da classe da coluna `geom` da função `read_municipal_seat()`.
+
+```{r}
+prefeituras <- read_municipal_seat(year = 2010, showProgress = FALSE)
+
+class(prefeituras$geom)
+```
+
+Note que a classe da coluna é do tipo `sfc_POINT`, ou seja, uma classe que nos retorna pontos nos mapas.
+
+Por outro lado, a classe da coluna `geom` da função `read_municipality()` é do tipo `sfc_MULTIPOLYGON`, portanto, nos retorna polígonos para formar os mapas.
+
+```{r}
+municipios <- read_municipality(code_muni = "all", year = 2020, showProgress = FALSE)
+
+class(municipios$geom)
+```
+
+Com isso, temos a opção de unir em um único mapa os municípios e as prefeituras de um estado.
+
+```{r}
+municipios_sp <- read_municipality(code_muni = "SP", year = 2010, showProgress = FALSE)
+
+prefeituras_sp <- read_municipal_seat(year = 2010, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state == "SP")
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = municipios_sp, fill = "#F8766D", color = "lightgrey") +
+  geom_sf(data = prefeituras_sp, size = 1.1) +
+  theme_bw()
+```
+
+A primeira geometria é correspondente ao mapa dos municípios de São Paulo, que foi sobreposto pela segunda geometria, referente ao mapa das prefeituras dos municípios de São Paulo.
+
+# Bairros, Subdistritos e Distritos
+
+A função `read_neighborhood()` retorna os limites de bairros, subdistritos ou distritos de 720 municípios brasileiros. Os dados são baseados em agregações dos setores censitários brasileiro. Atualmente, apenas os dados de 2010 estão disponíveis.
+
+```{r}
+read_neighborhood(year = 2010, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Como exemplo, selecionaremos os limites dos bairros do município de Piracicaba/SP.
+
+```{r}
+read_neighborhood(year = 2010, showProgress = FALSE) |> 
+  filter(name_muni == "Piracicaba") |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Para destacar um bairro em específico, podemos utilizar as ferramentas do pacote `gghighlight`.
+
+```{r}
+#| eval: false
+
+install.packages("gghighlight")
+library(gghighlight)
+```
+
+Com a função `gghighlight()`, destacaremos o bairro Agronomia, onde se localiza a ESALQ/USP.
+
+```{r}
+read_neighborhood(year = 2010, showProgress = FALSE) |> 
+  filter(name_muni == "Piracicaba") |>
+  ggplot() +
+  geom_sf() +
+  gghighlight::gghighlight(name_neighborhood == "Agronomia") +
+  geom_sf_text(aes(label = name_neighborhood), nudge_y = 0.003) +
+  theme_bw()
+```
+
+# Regiões Metropolitanas
+
+A função `read_metro_area()` retorna as regiões metropolitanas do Brasil. Essas regiões são definidas a partir de legislações estaduais.
+
+```{r}
+read_metro_area(year = 2018, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Para inserir as regiões metropolitanas junto ao mapa dos estados brasileiros, utilizamos duas geometrias `geom_sf()`.
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+reg_metrop <- read_metro_area(year = 2018, showProgress = FALSE)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = estados) +
+  geom_sf(data = reg_metrop, fill = "#CD832F") +
+  theme_bw()
+```
+
+A seguir, representaremos as regiões metropolitanas do Rio de Janeiro.
+
+```{r}
+rj_estado <- read_state(code_state = "RJ", year = 2018, showProgress = FALSE)
+
+rj_metrop <- read_metro_area(year = 2018, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state == "RJ")
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = rj_estado) +
+  geom_sf(data = rj_metrop, fill = "#CD832F", color = "black") +
+  theme_bw() +
+  labs(title = "Regiões metropolitanas do Rio de Janeiro")
+```
+
+# Áreas urbanas
+
+A função `read_urban_area()` retorna as áreas urbanas do Brasil nos anos de 2005 e 2015, segundo [metodologia do IBGE](https://biblioteca.ibge.gov.br/visualizacao/livros/liv100639.pdf).
+
+```{r}
+read_urban_area(year = 2015, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+No exemplo a seguir, ilustraremos as áreas urbanas de São Paulo.
+
+```{r}
+# Dados dos municípios de SP
+municipios_sp <- read_municipality(code_muni = "SP", year = 2015, showProgress = FALSE)
+
+code_muni_sp <- data.frame(code_muni = municipios_sp$code_muni)
+
+# Dados das áreas urbanas
+urb <- read_urban_area(year = 2015, showProgress = FALSE)
+
+# Selecionando as áreas urbanas de SP pelo código dos municípios
+urb_sp <- inner_join(urb, code_muni_sp, by = join_by(code_muni))
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = municipios_sp, alpha = 0.5) +
+  geom_sf(data = urb_sp, color = "#F8766D") +
+  theme_bw() +
+  labs(title = "Áreas urbanas de São Paulo em 2015")
+```
+
+# Áreas mínimas comparáveis
+
+A função `read_comparable_areas()` traz os dados das Áreas Mínimas Comparáveis (AMCs) dos municípios. Estes dados são referentes a área agregada do menor número de municípios necessários para que as comparações intertemporais sejam geograficamente consistentes.
+
+Os dados estão disponíveis para qualquer combinação de anos censitários entre 1872 e 2010. Os conjuntos de dados são gerados com base no código *Stata*, originalmente desenvolvido por [Philipp Ehrl (2017)](https://www.scielo.br/j/ee/a/d87GfsmvZGhsjTQPLpb8hBJ/?lang=en), sendo convertido para a linguagem R pela equipe desenvolvedora do pacote `geobr`.
+
+```{r}
+read_comparable_areas(start_year = 1980, end_year = 2010, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+A função recebe os argumentos `start_year =` e `end_year =` para indicar o ano inicial e final, respectivamente, como referência do período a ser considerado para comparação.
+
+Como resultado, a função gera um *data frame* com o código da área mínima comparável (`code_amc`) e uma lista com código(s) de municípios (`list_code_muni_2010`) respectivos à AMC do período em questão.
+
+```{r}
+#| layout-ncol: 2
+
+# Mapa à esquerda
+read_comparable_areas(start_year = 1980, end_year = 2010, showProgress = FALSE) |> 
+  filter(code_amc == 1021) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Área mínima comparável \n1980", x = "", y = "")
+
+# Mapa à direita
+read_municipality(code_muni = "all", year = 2010, showProgress = FALSE) |>
+  filter(code_muni %in% c(1301001, 1301951)) |> 
+  ggplot() +
+  geom_sf() +
+  geom_sf_text(aes(label = name_muni)) +
+  theme_bw() +
+  labs(title = "Municípios \n2010", x = "", y = "")
+```
+
+O mapa acima representa a AMC dos municípios de Carauari e Itamarati, no estado do Amazonas, no período entre 1980 e 2010.
+
+# Mapas temáticos
+
+Depois de apresentadas algumas das funções presentes no pacote `geobr`, traremos alguns exemplos aplicados utilizando os mapas em conjunto com dados.
+
+## Censo agropecuário 2006 e 2017
+
+Para as exemplificações, utilizaremos dados do [Censo Agropecuário](https://www.ibge.gov.br/estatisticas/economicas/agricultura-e-pecuaria/21814-2017-censo-agropecuario.html?=&t=destaques) de 2006 e 2017, realizado pelo Instituto Brasileiro de Geografia e Estatística (IBGE). Dentre as diversas informações que o censo coleta, utilizaremos a área e o número de estabelecimentos agropecuários dos estados brasileiros e dos municípios de Mato Grosso.
+
+Os dados foram coletados do Sistema IBGE de Recuperação Automática (SIDRA), a partir de duas fontes. Para 2006, utilizou-se a [Tabela263](https://sidra.ibge.gov.br/tabela/263) e para 2017, a [Tabela 6754](https://sidra.ibge.gov.br/tabela/6754).
+
+Para fazer o *download* dos dados compilados e processados, [clique aqui](https://github.com/gustavojy/mapas-brasil/raw/main/dados/dados.zip).
+
+```{r}
+censo_agro_06_17 <- readr::read_csv("dados/censo-agropec.csv")
+
+dplyr::glimpse(censo_agro_06_17)
+```
+
+O conjunto de dados apresenta 195 observações e 6 variáveis, sendo elas: 
+
+- `nivel`: o nível geográfico das observações, podendo ser um estado (`UF`) ou um município (`MU`);
+
+- `cod`: os códigos de identificação das localidades;
+
+- `localidade`: localidade dos estados brasileiros ou dos municípios de Mato Grosso;
+
+- `ano`: ano do censo agropecuário (2006 ou 2017);
+
+- `n_estab`: número de estabelecimentos;
+
+- `area_estab`: área dos estabelecimentos, a cada 100 mil hectares.
+
+## Dados agropecuários dos Estados
+
+Nesta etapa, criaremos um mapa coroplético dos estados de acordo com o número e a área dos estabelecimentos agropecuários em cada ano. Um mapa coroplético é um tipo de mapa temático que representa uma superfície estatística por meio de áreas simbolizadas com cores, sombreamentos ou padrões de acordo com uma escala que representa a proporcionalidade da variável estatística.
+
+Primeiramente, realizaremos algumas mudanças nos dados.
+
+```{r}
+censo_estados <- censo_agro_06_17 |> 
+  dplyr::filter(nivel == "UF") |> 
+  dplyr::mutate(n_estab = n_estab / 1000) |> 
+  tidyr::pivot_longer(
+    cols = c(n_estab, area_estab),
+    names_to = "var",
+    values_to = "valores"
+  )
+
+censo_estados |> head(10)
+```
+
+Na função `dplyr::mutate()`, convertemos os valores do número de estabelecimentos para cada mil estabelecimentos, a fim de adequar os valores para a representação no mapa. Posteriormente, realizamos a pivotagem das variáveis relativas aos estabelecimentos e áreas para as colunas `var` e `valores`.
+
+Agora, precisamos carregar os dados geográficos dos estados a partir da função `read_state()`.
+
+```{r}
+mapa_estados <- read_state(code_state = "all", showProgress = FALSE)
+```
+
+Com os dados do censo agropecuário do estados e os dados geográficos dos estados, juntaremos ambos em um único *data frame*. Para isso, utilizamos a função `dplyr::full_join()`, tendo como referência as colunas `name_state` e `code_state`.
+
+Portanto, antes de uni-las, iremos modificar os nomes das colunas do banco de dados referente ao censo, a fim padronizar as nomenclaturas e possibilitar a utilização da função de junção dos dados.
+
+```{r}
+dados_mapa_estados <- censo_estados |>
+  rename("name_state" = localidade, "code_state" = cod) |>
+  dplyr::full_join(mapa_estados, censo_estados, by = c("name_state", "code_state"))
+
+dados_mapa_estados |> head(10)
+```
+
+Feito isso, iniciaremos a confecção dos mapas, começando pelos dados do censo agropecuário de 2006.
+
+```{r}
+dados_mapa_estados |> 
+  filter(ano == 2006, var == "n_estab") |> 
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom))
+```
+
+O mapa coroplético acima representa o número de estabelecimentos agropecuários em 2006, de acordo com os estados. Para a sua confecção, primeiramente, filtramos o ano de 2006 e a variável relativa ao número de estabelecimentos (`n_estab`). Em seguida, dentro do `aes()` de geometria `geom_sf()` definimos a coluna de `valores` como parâmetro do argumento `fill =`, ou seja, os valores relativos ao número de estabelecimentos agropecuários serão preenchidos no mapa, de acordo com o estado. Já o argumento `geometry =` indica que a coluna `geom` apresenta os dados para a confecção do mapa.
+
+Assim, de maneira bem simples, podemos confeccionar mapas coropléticos a partir do `geobr` e do `ggplot2`, junto a dados de interesse. A seguir, demontraremos um exemplo de como melhorar a estética do mapa.
+
+```{r}
+dados_mapa_estados |> 
+  filter(ano == 2006, var == "n_estab") |> 
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  scale_fill_distiller(
+    direction = 0,
+    limits = c(0, 800),
+    name = "Nº estabelecimentos (por 1000 und.)",
+    guide = guide_legend(
+      keyheight = unit(3, units = "mm"),
+      keywidth=unit(12, units = "mm"),
+      label.position = "bottom",
+      title.position = 'top', nrow = 1
+    )
+  ) +
+  labs(
+    title = "Censo Agropecuário 2006",
+    subtitle = "Número de estabelecimentos agropecuários por estado, a cada 1000 unidades",
+    caption = "Fonte: IBGE - Censo Agropecuário 2006"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, hjust = 0.5),
+    plot.subtitle = element_text(size = 10),
+    plot.caption = element_text(size = 8, hjust = 0, vjust = 7),
+    legend.position = c(0.88, 0.12)
+  )
+```
+
+A função `scale_fill_distiller()` define a paleta de cores a ser utilizada, bem como os parâmetros referentes à legenda. A `labs()` permite inserir rótulos ao mapa, seja o título, subtítulo, fonte, dentre outros. Também definimos a temática estética do mapa ao definir o tamanho de letras e posicionamentos no mapa.
+
+O mapa a seguir segue a mesma lógica do anterior, porém, representando a área dos estabelecimentos agropecuários e utilizando a paleta de cores da função `scale_fill_gradient2()`.
+
+```{r}
+dados_mapa_estados |> 
+  filter(ano == 2006, var == "area_estab") |> 
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  scale_fill_gradient2(
+    limits = c(0, 550),
+    name = "Área estabelecimentos (por 100 mil ha)",
+    guide = guide_legend(
+      keyheight = unit(3, units = "mm"),
+      keywidth = unit(10, units = "mm"),
+      label.position = "bottom",
+      title.position = 'top', nrow = 1
+    )
+  ) +
+  labs(
+    title = "Censo Agropecuário 2006",
+    subtitle = "Área dos estabelecimentos agropecuários por estado, a cada 100 mil hectares",
+    caption = "Fonte: IBGE - Censo Agropecuário 2006"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    plot.caption = element_text(size = 8, hjust = 0, vjust = 7),
+    legend.position = c(0.88, 0.12)
+  )
+```
+
+Também podemos juntar dois mapas temáticos. No exemplo a seguir, uniremos o mapa do número de estabelecimentos com a área, de acordo com o censo agropecuário de 2006.
+
+```{r}
+dados_mapa_estados |> 
+  filter(ano == 2006) |> 
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  facet_wrap(
+    ~var,
+    labeller = as_labeller(
+      c(area_estab = "Área estabelecimentos", n_estab = "Nº estabelecimentos")
+    )
+  ) +
+  scale_fill_distiller(
+    direction = 0,
+    limits = c(0, 800),
+    name = "Quantidade e Área estabelecimentos",
+    guide = guide_legend(
+      keyheight = unit(3, units = "mm"),
+      keywidth = unit(11, units = "mm"),
+      label.position = "bottom",
+      title.position = 'top', nrow = 1
+    )
+  ) +
+  labs(
+    title = "Censo Agropecuário 2006",
+    subtitle = "Quantidade e área de estabelecimentos agropecuários, por estado",
+    caption = "Fonte: IBGE - Censo Agropecuário 2006"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, hjust = 0.5, vjust = 2),
+    plot.subtitle = element_text(size = 11, hjust = 0.5, vjust = 2.5),
+    plot.caption = element_text(size = 8, hjust = 0.5, vjust = -2),
+    legend.position = c(0.49, 0.06)
+  )
+```
+
+Para isso, utilizamos a função `facet_wrap()`, definindo a variável `var` como parâmetro para dividir os mapas. Além disso, dentro dessa mesma função, utilizamos a `labeller = as_labeller()` para alterar os nomes das observações que compõem a coluna `var`.
+
+Podemos proceder da mesma forma para comparar o censo de 2006 com o de 2017, apenas alterando o parâmetro da função `facet_wrap()` para a coluna `ano`.
+
+```{r}
+dados_mapa_estados |> 
+  filter(var == "n_estab") |>
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  facet_wrap(~ano) +
+  scale_fill_distiller(
+    direction = 0,
+    limits = c(0, 800),
+    name = "Nº estabelecimentos (por 1000 und.)",
+    guide = guide_legend(
+      keyheight = unit(3, units = "mm"),
+      keywidth = unit(11, units = "mm"),
+      label.position = "bottom",
+      title.position = 'top', nrow = 1
+    )
+  ) +
+  labs(
+    title = "Censo Agropecuário 2006 e 2017",
+    subtitle = "Número de estabelecimentos agropecuários por estado, a cada 1000 unidades",
+    caption = "Fonte: IBGE - Censo Agropecuário 2006 e 2017"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, hjust = 0.5, vjust = 2),
+    plot.subtitle = element_text(size = 11, hjust = 0.5, vjust = 2.5),
+    plot.caption = element_text(size = 8, hjust = 0.5, vjust = -2),
+    legend.position = c(0.49, 0.06)
+  )
+```
+
+```{r}
+dados_mapa_estados |> 
+  filter(var == "area_estab") |>
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  facet_wrap(~ano) +
+  scale_fill_distiller(
+    direction = 0,
+    limits = c(0, 800),
+    name = "Área estabelecimentos (por 100 mil ha)",
+    guide = guide_legend(
+      keyheight = unit(3, units = "mm"),
+      keywidth = unit(11, units = "mm"),
+      label.position = "bottom",
+      title.position = 'top', nrow = 1
+    )
+  ) +
+  labs(
+    title = "Censo Agropecuário 2006 e 2017",
+    subtitle = "Área dos estabelecimentos agropecuários por estado, a cada 100 mil hectares",
+    caption = "Fonte: IBGE - Censo Agropecuário 2006 e 2017"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 15, hjust = 0.5, vjust = 2),
+    plot.subtitle = element_text(size = 11, hjust = 0.5, vjust = 2.5),
+    plot.caption = element_text(size = 8, hjust = 0.5, vjust = -2),
+    legend.position = c(0.49, 0.06)
+  )
+```
+
+## Municípios de Mato Grosso
+
+Podemos proceder da mesma maneira para criar mapas coroplético a partir de outra dimensão geográfica. Nesse caso, faremos para os municípios do estado do Mato Grosso, de acordo com os dados do censo agropecuário de 2017. A lógica segue a mesma dos mapas confeccionados anteriormente.
+
+```{r}
+# Organizando dados do censo agropecuário 2017
+censo_muni_MT <- censo_agro_06_17 |> 
+  filter(nivel == "MU") |> 
+  mutate(n_estab = n_estab / 100) |> 
+  pivot_longer(
+    cols = c(n_estab, area_estab),
+    names_to = "var",
+    values_to = "valores"
+  ) |> 
+  rename("code_muni" = cod)
+
+# Carregando dados dos municípios de MT
+mapa_muni_MT <- read_municipality(code_muni = "MT", showProgress = FALSE)
+
+# Juntando as bases de dados a partir da coluna `code_muni`
+dados_mapa_muni_MT <- full_join(mapa_muni_MT, censo_muni_MT, by = "code_muni") |> 
+  select(code_muni, name_muni, ano, var, valores, geom)
+```
+
+```{r}
+dados_mapa_muni_MT |> 
+  filter(var == "n_estab") |>
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  scale_fill_distiller(
+    direction = 0,
+    limits = c(0, 40),
+    guide = guide_legend(
+      keyheight = unit(5, units = "mm"),
+      keywidth = unit(5, units = "mm"),
+      label.position = "left")
+  ) +
+  labs(
+    title = "Censo Agropecuário 2017",
+    subtitle = "Número de estabelecimentos agropecuários por município de MT, a cada 100 unidades",
+    caption = "Fonte: IBGE - Censo Agropecuário 2017",
+    fill = NULL
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 13, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    plot.caption = element_text(size = 9, hjust = 0.5)
+  )
+```
+
+```{r}
+dados_mapa_muni_MT |> 
+  filter(var == "area_estab") |>
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  scale_fill_gradient2(
+    limits = c(0, 20),
+    guide = guide_legend(
+      keyheight = unit(5, units = "mm"),
+      keywidth = unit(5, units = "mm"),
+      label.position = "left"
+    )
+  ) +
+  labs(
+    title = "Censo Agropecuário 2017",
+    subtitle = "Área dos estabelecimentos agropecuários por município de MT, a cada 100 mil hectares",
+    caption = "Fonte: IBGE - Censo Agropecuário 2017",
+    fill = NULL
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 13, hjust = 0.5),
+    plot.subtitle = element_text(size = 10, hjust = 0.5),
+    plot.caption = element_text(size = 9, hjust = 0.5)
+  )
+```
+
+```{r}
+dados_mapa_muni_MT |> 
+  ggplot() +
+  geom_sf(aes(fill = valores, geometry = geom)) +
+  facet_wrap(
+    ~var,
+    labeller = as_labeller(
+      c(area_estab = "Área estabelecimentos", n_estab = "Nº estabelecimentos"))
+  ) +
+  scale_fill_gradient2(
+    limits = c(0, 40),
+    guide = guide_legend(
+      keyheight = unit(2, units = "mm"),
+      keywidth = unit(7, units = "mm"),
+      label.position = "bottom", nrow = 1
+    )
+  ) +
+  labs(
+    title = "Censo Agropecuário 2017",
+    subtitle = "Quantidade e área de estabelecimentos agropecuários por município de MT",
+    caption = "Fonte: IBGE - Censo Agropecuário 2017",
+    fill = ""
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(size = 13, hjust = 0.5, vjust = 2),
+    plot.subtitle = element_text(size = 10, hjust = 0.5, vjust = 2),
+    plot.caption = element_text(size = 9, hjust = 0.5, vjust = -2),
+    legend.position = c(0.52, 0.06)
+  )
+```
+
+# Biomas
+
+O pacote `geobr` também possui um conjunto de dados para os biomas e a zona costeira do Brasil, baseado nos dados do [IBGE - Biomas e Sistema Costeiro-Marinho](https://www.ibge.gov.br/apps/biomas/#/home). Para tanto, utilizamos a função `read_biomes()`.
+
+```{r}
+read_biomes(showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf(aes(fill = name_biome)) +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_bw() +
+  labs(fill = "Biomas")
+```
+
+A seguir, selecionaremos o bioma cerrado.
+
+```{r}
+read_biomes(showProgress = FALSE) |> 
+  dplyr::filter(name_biome == "Cerrado") |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Para adicionar um bioma ou o sistema costeiro ao mapa do país, utilizamos dois tipos de geometrias.
+
+```{r}
+brasil <- read_country(showProgress = FALSE)
+
+sist_costeiro <- read_biomes(showProgress = FALSE) |> 
+  dplyr::filter(name_biome == "Sistema Costeiro")
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = brasil) +
+  geom_sf(data = sist_costeiro, aes(fill = name_biome)) +
+  scale_fill_brewer(palette = "Blues") +
+  theme_bw() +
+  labs(fill = NULL)
+```
+
+No exemplo a seguir, adicionaremos os biomas no mapa do Brasil, dividido por estados.
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+biomas <- read_biomes(year = 2019, showProgress = FALSE)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = biomas, aes(fill = name_biome), color = 0) +
+  geom_sf(data = estados, alpha = 0, color = "antiquewhite4") +
+  scale_fill_brewer(palette = "Pastel2") +
+  theme_bw() +
+  geom_sf_text(data = estados, aes(label = abbrev_state), size = 2) +
+  labs(fill = "Biomas", x = NULL, y = NULL)
+```
+
+No mapa anterior, utilizamos duas geometrias, cada qual respectiva a um tipo de dado geoespacial. No caso da geometria referente aos biomas (`data = biomas`), preenchemos com os tipos de biomas (`fill = name_biome`) e retiramos as cores das bordas com o `color = 0`. Em seguida, inserimos o mapa dos estados (`data = estados`), retirando a coloração interna com o argumento `alpha = 0` e mantemos as linhas que demarcam os estados. 
+
+# Amazônia Legal
+
+A função `read_amazon()` nos retorna a área da Amazônia Legal Brasileira, definida pela lei n.12.651/2012. Os dados são do [Ministério do Meio Ambiente (MMA)](http://mapas.mma.gov.br/i3geo/datadownload.htm).
+
+```{r}
+read_amazon(showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+O mapa a seguir ilustra a área da Amazônia Legal Brasileira delimitada pelos estados.
+
+```{r}
+estados <- read_state(code_state = "all", showProgress = FALSE)
+
+amazonia_legal <- read_amazon(showProgress = FALSE)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = amazonia_legal, fill = "lightgreen", color = 0) +
+  geom_sf(data = estados, alpha = 0) +
+  geom_sf_text(data = estados, aes(label = abbrev_state), size = 1.7) +
+  theme_bw() +
+  labs(x = NULL, y = NULL)
+```
+
+# Semiárido
+
+A função `read_semiarid()` retorna os municípios que compunham o semiárido brasileiro nos anos de 2005 e 2017, baseado nos dados do [IBGE - Semiárido Brasileiro](https://www.ibge.gov.br/geociencias/cartas-e-mapas/mapas-regionais/15974-semiarido-brasileiro.html?=&t=downloads).
+
+```{r}
+read_semiarid(year = 2005, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Podemos inserir os municípios do semiárido no mapa do Brasil dividido por estados.
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+semiarido <- read_semiarid(showProgress = FALSE)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = semiarido, fill = "#F8766D") +
+  geom_sf(data = estados, alpha = 0) +
+  theme_bw()
+```
+
+Para retirar as linhas de contorno dos municípios, declaramos o argumento `color = 0` na geometria referente aos municípios do semiárido.
+
+```{r}
+ggplot() +
+  geom_sf(data = semiarido, fill = "#F8766D", color = 0) +
+  geom_sf(data = estados, alpha = 0) +
+  theme_bw()
+```
+
+Por fim, podemos comparar as áreas do semiárido entre os anos de 2005 e 2017.
+
+```{r}
+#| layout-ncol: 2
+
+# Mapa à esquerda
+semiarido_05 <- read_semiarid(year = 2005, showProgress = FALSE)
+
+abbr_semiarido_05 <- as.vector(unique(semiarido_05$abbrev_state))
+
+read_state(code_state = "all", showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state %in% abbr_semiarido_05) |> 
+  ggplot() + 
+  geom_sf(data = semiarido_05, fill = "#F8766D", color = 0) +
+  geom_sf(alpha = 0) +
+  theme_bw() +
+  labs(title = "2005", x = NULL, y = NULL) +
+  geom_sf_text(aes(label = abbrev_state), size = 2.3)
+
+# Mapa à direita
+semiarido_17 <- read_semiarid(year = 2017, showProgress = FALSE)
+
+abbr_semiarido_17 <- as.vector(unique(semiarido_17$abbrev_state))
+
+read_state(code_state = "all", showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state %in% abbr_semiarido_17) |> 
+  ggplot() + 
+  geom_sf(data = semiarido_17, fill = "#F8766D", color = 0) +
+  geom_sf(alpha = 0) +
+  theme_bw() +
+  labs(title = "2017", x = NULL, y = NULL) +
+  geom_sf_text(aes(label = abbrev_state), size = 2.3)
+```
+
+# Áreas de conservação
+
+Para ilustrar as áreas de conservação do Brasil, utilizamos a função `read_conservation_units()`. A última atualização foi feita em setembro de 2019, baseada nos dados do [Ministério do Meio Ambiente (MMA)](http://mapas.mma.gov.br/i3geo/datadownload.htm).
+
+```{r}
+areas_conservacao <- read_conservation_units(date = 201909, showProgress = FALSE)
+
+dim(areas_conservacao)
+names(areas_conservacao)
+```
+
+A base de dados possui 1934 áreas de conservação registradas, sendo divididas por código da unidade de conservação (`code_conservation_unit`), nome da unidade de conservação (`name_conservation_unit`), categoria da unidade de conservação (`category`), nivel governamental (`government_level`), ano da criação (`creation_year`), nome da organização responsável (`name_organization`), dentre outros.
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+ggplot() +
+  geom_sf(data = areas_conservacao, fill = "lightgreen") +
+  geom_sf(data = estados, alpha = 0) +
+  theme_bw()
+```
+
+# Terras indígenas
+
+A função `read_indigenous_land()` apresenta as áreas de terras indígenas. O respectivo conjunto de dados abrange todas as terras indígenas, de todas as etnias e em diferentes estágios de demarcação. Os dados são de setembro de 2019 e março de 2021, oriundos da [Fundação Nacional do Índio (FUNAI)](https://www.gov.br/funai/pt-br).
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+read_indigenous_land(date = 201907, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf(fill = "#ED8141") +
+  geom_sf(data = estados, alpha = 0) +
+  theme_bw()
+```
+
+A seguir, selecionaremos as áreas de terras indígenas no Acre em 2019.
+
+```{r}
+estado_acre <- read_municipality(code_muni = "all", year = 2019, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state == "AC")
+
+terra_indigena_acre <- read_indigenous_land(date = 201907, showProgress = FALSE) |> 
+  filter(abbrev_state == "AC")
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = estado_acre) +
+  geom_sf(data = terra_indigena_acre, fill = "#929200") +
+  theme_bw()
+```
+
+Agora, distinguiremos as áreas de acordo com a etnia da população.
+
+```{r}
+ggplot() +
+  geom_sf(data = estado_acre) +
+  geom_sf(data = terra_indigena_acre, aes(fill = etnia_nome)) +
+  theme_bw() +
+  labs(fill = "Etnia")
+```
+
+Por fim, separaremos as terras indígenas por estágio de demarcação.
+
+```{r}
+ggplot() +
+  geom_sf(data = estado_acre) +
+  geom_sf(data = terra_indigena_acre, aes(fill = fase_ti)) +
+  theme_bw() +
+  labs(fill = "Estágio de\ndemarcação")
+```
+
+# Áreas de risco de desastres naturais
+
+A função `read_disaster_risk_area()` retorna dados oficiais de áreas de risco de desastres naturais no Brasil em 2010, baseado na metodologia do [IBGE e CEMADEN](https://www.ibge.gov.br/geociencias/organizacao-do-territorio/tipologias-do-territorio/21538-populacao-em-areas-de-risco-no-brasil.html). As informações se concentram em desastres geodinâmicos e hidrometeorológicos capazes de desencadear deslizamentos de terra e inundações.
+
+Cada polígono de área de risco (conhecido como *BATER*) possui um código de identificação (`geo_bater`). O conjunto de dados traz informações sobre o quanto os polígonos das áreas de risco se sobrepõem aos setores censitários e faces do bloco (`acuracia`) e o número de áreas dentro de cada área de risco (`num`).
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+read_disaster_risk_area(showProgress = FALSE) |>
+  ggplot() +
+  geom_sf(data = estados, fill = "white") +
+  geom_sf(fill = "#2D3E50", color = "#FEBF57", size = .15) +
+  theme_bw()
+```
+
+O mapa a seguir ilustra as áreas de risco no estado do Rio de Janeiro.
+
+```{r}
+rj <- read_state(code_state = "RJ", year = 2019, showProgress = FALSE)
+
+read_disaster_risk_area(year = 2010, showProgress = FALSE) |>
+  dplyr::filter(abbrev_state == "RJ") |>
+  ggplot() +
+  geom_sf(data = rj, alpha = 0) +
+  geom_sf(fill = "#2D3E50", color = "#FEBF57", size = .15) +
+  theme_bw()
+```
+
+Por fim, as áreas de risco no município de Petrópolis/RJ.
+
+```{r}
+lookup_muni(name_muni = "Petrópolis") |> dplyr::glimpse()
+
+petropolis <- read_municipality(code_muni = 3303906, showProgress = FALSE)
+```
+
+```{r}
+read_disaster_risk_area(year = 2010, showProgress = FALSE) |>
+  dplyr::filter(name_muni == "Petropolis") |>
+  ggplot() +
+  geom_sf(data = petropolis, alpha = 0) +
+  geom_sf(fill = "#2D3E50", color = "#FEBF57", size = .15) +
+  theme_bw()
+```
+
+# Estabelecimentos de saúde
+
+A função `read_health_facilities()` nos retorna os estabelecimentos de saúde presentes nos municípios brasileiros. Os dados são provenientes do [Cadastro Nacional de Estabelecimentos de Saúde (CNES)](https://dados.gov.br/dataset?q=CNES), originalmente coletados pelo Ministério da Saúde do Brasil.
+
+Segundo o Ministério da Saúde, as coordenadas de cada unidade foram obtidas pelo CNES e validadas por meio de operações espaciais. Essas operações verificam se o ponto está no município, considerando um raio de 5.000 metros. Quando a coordenada não está correta, outras buscas são feitas em outros sistemas do Ministério da Saúde, como o *DataSUS* e em serviços web, como o *Google Maps*. Por fim, se as coordenadas foram obtidas corretamente neste processo, são utilizadas as coordenadas da sede municipal.
+
+A fonte do geocódigo utilizada está presente na coluna `data_source` do banco de dados. A data da última atualização dos dados é registrada nas colunas `date_update` e `year_update`. Além disso, cada estabelecimento de saúde apresenta um código de identificação, presente na coluna `code_cnes`.
+
+```{r}
+read_health_facilities(showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+A seguir, ilustraremos os estabelecimentos de saúde do município de Piracicaba/SP.
+
+```{r}
+lookup_muni(name_muni = "Piracicaba") |> dplyr::glimpse()
+
+piracicaba <- read_municipality(code_muni = 3538709, year = 2020, showProgress = FALSE)
+
+piracicaba_estab_saude <- read_health_facilities(showProgress = FALSE) |> 
+  dplyr::filter(code_muni == 353870)
+```
+
+```{r}
+ggplot() +
+  geom_sf(data = piracicaba) +
+  geom_sf(data = piracicaba_estab_saude) +
+  theme_bw()
+```
+
+Vale destacar que na função `read_health_facilities()`, os códigos de identificação dos municípios (`code_muni`) estão representados pelos 6 primeiros dígitos dos 7 dígitos que compõe o código original. Por tanto, quando utilizar os códigos do municípios na função `read_health_facilities()`, use apenas os 6 primeiros dígitos.
+
+# Regiões de saúde
+
+A função `read_health_region()` contém os dados das regiões de saúde no Brasil nos anos de 1991, 1994, 1997, 2001, 2005 e 2013.
+
+Estes dados são utilizados para orientar o planejamento regional e estadual dos serviços de saúde. Dentro disso, temos as macrorregiões de saúde que, em particular, são utilizadas para orientar o planejamento dos serviços de saúde de alta complexidade, serviços estes que envolvem maior economia de escala e estão concentrados em poucos municípios, pois geralmente são mais intensivos em tecnologia, onerosos e enfrentam escassez de profissionais especializados. Uma macrorregião compreende uma ou mais regiões de saúde.
+
+```{r}
+#| layout-ncol: 2
+
+# Mapa à esquerda
+read_health_region(year = 2013, macro = FALSE, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Regiões de saúde")
+
+# Mapa à direita
+read_health_region(year = 2013, macro = TRUE, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Macrorregiões de saúde")
+```
+
+O argumento `macro =` aceita valores lógicos para representar as macrorregiões de saúde (`macro = TRUE`) ou representar apenas as regiões de saúde (`macro = FALSE`). Por padrão, caso não seja especificado o argumento, `macro = FALSE`.
+
+Os mapas a seguir ilustram as regiões e macrorregiões de saúde do estado de Goiás.
+
+```{r}
+#| layout-ncol: 2
+
+# Mapa à esquerda
+read_health_region(year = 2013, macro = FALSE, showProgress = FALSE) |>
+  dplyr::filter(abbrev_state == "GO") |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Regiões de saúde - GO") +
+  geom_sf_text(aes(label = name_health_region), size = 1.8)
+
+# Mapa à direita
+read_health_region(year = 2013, macro = TRUE, showProgress = FALSE) |>
+  dplyr::filter(abbrev_state == "GO") |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Macrorregiões de saúde - GO") +
+  geom_sf_text(aes(label = name_health_macroregion), size = 1.8)
+```
+
+# Escolas
+
+A função `read_schools()` contém os dados do Censo Escolar coletados pelo [Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira (INEP)](https://www.gov.br/inep/pt-br/acesso-a-informacao/dados-abertos/inep-data/catalogo-de-escolas/) para o ano de 2020.
+
+O conjunto de dados possui diversas informações, como o nome da escola (`name_school`), o nível escolar (`education_level`), tipos de administração (`admin_category`, `government_level`, `private_school_type`, `private_government_partnership`), dentre outras.
+
+```{r}
+read_schools(year = 2020, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+A seguir, selecionaremos as escolas de Piracicaba/SP, categorizadas por tipo de administração.
+
+```{r}
+piracicaba <- read_municipality(code_muni = 3538709, year = 2020, showProgress = FALSE)
+
+read_schools(year = 2020, showProgress = FALSE) |>
+  dplyr::filter(name_muni == "Piracicaba") |>
+  ggplot() +
+  geom_sf(data = piracicaba) +
+  geom_sf(aes(color = government_level), size = 1.5) +
+  theme_bw() +
+  labs(color = "Tipo administrativo")
+```
+
+# Áreas de Concentração de População
+
+A função `read_urban_concentrations()` lê os dados oficiais do [IBGE](https://www.ibge.gov.br/apps/arranjos_populacionais/2015/pdf/publicacao.pdf) sobre as áreas de concentração de população no Brasil.
+
+O conjunto de dados traz como variáveis o nome das áreas de concentração urbana (`name_urban_concentration`), bem como os nomes dos municípios e estados que fazem parte. Além disso, as colunas `pop_total_2010`, `pop_urban_2010` e `pop_rural_2010` trazem o número da população total, urbana e rural, respectivamente, de acordo com o Censo 2010 realizado pelo IBGE.
+
+```{r}
+estados <- read_state(code_state = "all", year = 2019, showProgress = FALSE)
+
+read_urban_concentrations(year = 2015, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf(data = estados, alpha = 0) +
+  geom_sf(fill = "#B0001D") +
+  theme_bw()
+```
+
+O mapa a seguir ilustra as áreas de concentração urbana de São Paulo.
+
+```{r}
+municipios_sp <- read_municipality(code_muni = "SP", year = 2010, showProgress = FALSE)
+
+read_urban_concentrations(year = 2015, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state == "SP") |> 
+  ggplot() +
+  geom_sf(data = municipios_sp, fill = "lightgrey") +
+  geom_sf(fill = "#B0001D") +
+  theme_bw()
+```
+
+Também temos a possibilidade de fazer um mapa de calor com a população urbana das áreas de concentração. O exemplo a seguir ilustra o estado do Paraná.
+
+```{r}
+municipios_pr <- read_municipality(code_muni = "PR", year = 2010, showProgress = FALSE)
+
+read_urban_concentrations(year = 2015, showProgress = FALSE) |> 
+  dplyr::filter(abbrev_state == "PR") |>
+  ggplot() +
+  geom_sf(data = municipios_pr, fill = "lightgrey") +
+  geom_sf(aes(fill = pop_urban_2010)) +
+  scale_fill_viridis_c(direction = -1, limits = c(3000, 1750000)) +
+  theme_bw() +
+  labs(fill = "População urbana")
+```
+
+Para isso, utilizamos os dados da variável `pop_urban_2010` que contém a população urbana das áreas de concentração do Paraná. Com a função `scale_fill_viridis_c()` definimos os limites de escala a serem considerados no mapa de calor, tendo valor mínimo de 3.000 e máximo de 1.750.000 habitantes.
+
+# Arranjos populacionais
+
+A função `read_pop_arrangements()` retorna os dados oficiais sobre arranjos populacionais, que são agrupamentos de dois ou mais municípios com forte integração populacional, devido aos movimentos pendulares para trabalho ou estudo, ou à contiguidade entre manchas urbanas. Os dados originais são do [Instituto Brasileiro de Geografia e Estatística (IBGE)](https://www.ibge.gov.br/apps/arranjos_populacionais/2015/pdf/publicacao.pdf).
+
+De modo semelhante aos dados das áreas de concentração urbana, este conjunto de dados contém a nomenclatura dos arranjos populacionais (`name_pop_arrangement`), o município e estado que faz parte e as populações totais, urbana e rural do arranjo, de acordo com o Censo 2010.
+
+```{r}
+read_pop_arrangements(year = 2015, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+Os arranjos populacionais do estado do Rio de Janeiro estão ilustrados a seguir, bem como o mapa de calor da população total.
+
+```{r}
+municipios_rj <- read_municipality(code_muni = "RJ", showProgress = FALSE)
+
+read_pop_arrangements(year = 2015, showProgress = FALSE) |>
+  dplyr::filter(abbrev_state == "RJ") |> 
+  ggplot() +
+  geom_sf(data = municipios_rj) +
+  geom_sf(fill = "#B07600") +
+  theme_bw()
+```
+
+```{r}
+municipios_rj <- read_municipality(code_muni = "RJ", showProgress = FALSE)
+
+read_pop_arrangements(year = 2015, showProgress = FALSE) |>
+  dplyr::filter(abbrev_state == "RJ") |> 
+  ggplot() +
+  geom_sf(data = municipios_rj) +
+  geom_sf(aes(fill = pop_total_2010)) +
+  scale_fill_viridis_c(direction = -1, limits = c(8000, 6400000)) +
+  theme_bw() +
+  labs(fill = "População \ntotal")
+```
+
+# Setor censitário
+
+O setor censitário é a unidade territorial estabelecida pelo [IBGE](https://www.ibge.gov.br/geociencias/organizacao-do-territorio/malhas-territoriais/26565-malhas-de-setores-censitarios-divisoes-intramunicipais.html?=&t=downloads) para planejar e realizar levantamentos de dados do Censo e Pesquisas Estatísticas. É formado por uma área contínua, considerando a Divisão Político-Administrativa, situada em um único quadro urbano ou rural, com dimensão e número de domicílios que permitam o levantamento das informações por um recenseador dentro do prazo determinado para a coleta. Assim sendo, cada recenseador procederá à coleta de informações tendo como meta a cobertura do setor censitário que lhe é designado.
+
+A função `read_census_tract()` nos retorna os dados do setor censitário para os anos de 2000, 2010, 2017, 2019 e 2020. 
+
+```{r}
+#| eval: false
+
+read_census_tract(code_tract = "all", year = 2020, showProgress = FALSE)
+```
+
+O argumento `code_tract =` pode receber o valore `"all"` para selecionar todos os dados dos setores censitários do Brasil; um código ou abreviação do estado; e um código de 7 dígitos referentes aos municípios.
+
+Como exemplo, selecionaremos os setores censitários de Sergipe em 2010, divididos por zona rural e urbana.
+
+```{r}
+read_census_tract(code_tract = "SE", year = 2010, showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf(aes(fill = zone)) +
+  theme_bw() +
+  labs(fill = "Zona")
+```
+
+No caso dos setores censitários do ano de 2000, as zonas rural e urbana estão em bases de dados separadas. Para isso, precisamos utilizar o argumento `zone =` para especificar a zona rural (`zone = "rural"`) ou urbana (`zone = "urban"`). Caso o argumento não seja declarado, por padrão, adota-se a zona urbana.
+
+```{r}
+#| layout-ncol: 2
+
+# Mapa à esquerda
+read_census_tract(code_tract = "SE", year = 2000, zone = "rural", showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Setor censitário - Área rural \nSergipe, 2000")
+
+# Mapa à direita
+read_census_tract(code_tract = "SE", year = 2000, zone = "urban", showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Setor censitário - Área urbana \nSergipe, 2000")
+```
+
+# Áreas de ponderação
+
+Segundo o [IBGE](https://www.ibge.gov.br/estatisticas/sociais/populacao/9662-censo-demografico-2010.html?edicao=9754&t=sobre), área de ponderação é definida como sendo uma unidade geográfica, formada por um agrupamento mutuamente exclusivo de setores censitários contíguos, para a aplicação dos procedimentos de calibração dos pesos de forma a produzir estimativas compatíveis com algumas das informações conhecidas para a população como um todo.
+
+A função `read_weighting_area()` nos retorna as áreas de ponderação para o ano de 2010.
+
+```{r}
+read_weighting_area(code_weighting = "all", showProgress = FALSE) |> 
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+A seguir, selecionaremos as áreas de ponderação do Distrito Federal e do município de Maceió/AL.
+
+```{r}
+read_weighting_area(code_weighting = "DF", year = 2010, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Distrito Federal")
+```
+
+```{r}
+lookup_muni(name_muni = "Maceió") |> dplyr::glimpse()
+
+read_weighting_area(code_weighting = 2704302, showProgress = FALSE) |>
+  ggplot() +
+  geom_sf() +
+  theme_bw() +
+  labs(title = "Maceió/AL")
+```
+
+# Grade estatística do IBGE
+
+Segundo o [IBGE](https://geoftp.ibge.gov.br/recortes_para_fins_estatisticos/grade_estatistica/censo_2010/grade_estatistica.pdf), as grades estatísticas são uma forma de disseminação de dados que permite análises detalhadas e independentes das divisões territoriais, visando atender, principalmente, a necessidade de se ter dados em unidades geográficas pequenas e estáveis ao longo do tempo, facilitando a comparação nacional e internacional e fornecendo um aumento significativo do detalhamento, particularmente nas regiões rurais, em comparação com metodologias anteriores.
+
+A função `read_statistical_grid()` nos retorna as grades estatísticas do IBGE, com dimensão de 200 x 200 metros para o ano de 2010. Cada quadrante das grades são representados por um código de 7 dígitos.
+
+```{r}
+#| eval: false
+
+read_statistical_grid(code_grid = "all", year = 2010, showProgress = FALSE)
+```
+
+A `grid_state_correspondence_table` carrega uma tabela de correspondência indicando quais quadrantes da grade estatística do IBGE se cruzam com cada estado.
+
+```{r}
+grid_state_correspondence_table |> head(10)
+```
+
+Devido à grande quantidade de informação contida na função `read_statistical_grid()`, apenas ilustraremos o seu código.
+
+# Resumo {.unnumbered}
+
+O pacote `geobr` integrado com o `tidyverse` apresenta uma grande variedade de funções para ilustrar diversos mapas do Brasil, sobre os mais variados temas.
+
+Existem alguns pacotes análogos ao `geobr` que tratam de mapas de outros países e continentes. Esses pacotes estão listados na página do GitHub do próprio pacote [geobr](https://github.com/ipeaGIT/geobr?tab=readme-ov-file#contributing-to-geobr).
+
+Caso o leitor tenha interesse em conhecer mais sobre a elaboração de mapas com o `ggplot2`, recomendo o capítulo 6 do livro [ggplot2: Elegant Graphics for Data Analysis](https://ggplot2-book.org/maps.html).
