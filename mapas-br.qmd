@@ -8,7 +8,9 @@ lang: pt-BR
 theme: cosmo
 format: 
   html:
-    theme: cosmo
+    theme: 
+      light: cosmo
+      dark: darkly
     toc: true
     toc-location: left
     embed-resources: true
@@ -50,7 +52,7 @@ Neste material, apresentaremos uma das diversas possibilidade de utilização de
 
 O pacote `geobr` foi desenvolvido por membros da equipe do [Instituto de Pesquisa Econômica Aplicada (IPEA)](https://github.com/ipeaGIT/geobr). Nele, encontramos uma ampla gama de dados geoespaciais oficiais do Brasil, disponíveis em várias escalas geográficas e por vários anos, com atributos, projeção e topologia harmonizados.
 
-Além do `geobr`, utilizaremos funções dos pacotes presentes no `tidyverse` para a manipulação e visualização de dados. Caso queira saber mais sobre as funcionalidades do `tidyverse`, confira o seguinte material: <https://github.com/gustavojy/icdr>.
+Além do `geobr`, utilizaremos funções dos pacotes presentes no `tidyverse` para a manipulação e visualização de dados. Caso queira saber mais sobre as funcionalidades do `tidyverse`, confira o seguinte material: <https://gustavojy.github.io/apostila-icdr/>.
 
 A instalação dos pacotes `geobr` e `tidyverse` pode ser realizada diretamente via CRAN.
 
