@@ -5,7 +5,6 @@ author: "Gustavo Jun Yakushiji"
 date: last-modified
 date-format: "DD-MM-YYYY"
 lang: pt-BR
-theme: cosmo
 format: 
   html:
     theme: 
